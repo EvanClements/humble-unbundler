@@ -1,17 +1,16 @@
 ## To Do:
 
-- [ ] Remove sensitive parameters and hardcoded user info
-- [ ] Create system to get needed user info from config.json or config.yaml
+- [x] Remove sensitive parameters and hardcoded user info
+- [x] Create system to get needed user info from config.json
 - [ ] What info is needed? "_simpleauth_sess" cookie?
 - [ ] Upload to GitHub once config system setup
 - [ ] Create a README.md with a description, how to set up, and how to use
-- [ ] Refactor code (switch to new module?)
 - [ ] Web UI or Terminal UI?
 
 ### Progress:
 
 - [x] Use cookie to access Humble Bundle user info
-- [ ] Use cookie to access further info for each bundle
+- [x] Use cookie to access further info for each bundle
 - [ ] Add information to SQlite db
 - [ ] Download Direct Download Links
 - [ ] Create UI

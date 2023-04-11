@@ -56,6 +56,13 @@ func main() {
 		ErrorLogger.Fatalf("cannot parse json: %s", e)
 	}
 
+	// TODO: add SQLite3 init code that would do the following:
+	// - [ ] Check for existing 'humble.db' file
+	// - [ ] If not existing, then create it
+	// - [ ] If existing, then  check for necessary Tables
+	// - [ ] If not present, then create them
+	// - [ ] If present, then complete init
+
 	// Grab 'cookie', if no cookie, throw a tantrum
 	var sessCookie string = val.Get("cookie").String()
 
@@ -77,7 +84,7 @@ func main() {
 		// Create a new cookie
 		cookie := &http.Cookie{
 			Name:  "_simpleauth_sess",
-			Value: sessCookie,
+			Value: s.Trim(sessCookie, "\""),
 			// need to find out how to make this not hard coded
 		}
 		// Add the cookie to the request
@@ -93,7 +100,12 @@ func main() {
 		if err != nil {
 			ErrorLogger.Fatalf("cannot parse json: %s", err)
 		}
+
+		// There is a lot of info here: do we want more than just 'gamekeys'?
+		// Also, should we parse the info into a DB or JSON file?
+
 		InfoLogger.Println("User JSON: ", v.Get())
+
 		gk := v.GetArray("gamekeys")
 
 		for i := 0; i <= len(gk)-1; i++ {
@@ -102,11 +114,17 @@ func main() {
 
 			q.AddURL(endpoint)
 		}
-		// Do I process this here? or in c.OnScraped?
-		// Next steps:
-		// for loop > populate sql table with game keys
 
-		// populate the user table
+		// Next steps:
+		// Create a 'User' struct (what will it contain?)
+		// Thought: type User struct {
+		//	SteamID string,
+		//	OriginID string,
+		//	UplayID string,
+		//	GogID string,
+		//	Gamekeys array,
+		//}
+		// Populate the User table/JSON file
 	})
 
 	apiCall.OnResponse(func(r *colly.Response) {
@@ -115,11 +133,18 @@ func main() {
 			ErrorLogger.Fatalf("cannot parse json: %s", err)
 		}
 
+		// We have both direct downloads and keys encompassed in these vars
 		ddl := v.Get().Get("subproducts")
 		tpkd := v.Get().Get("tpkd_dict").Get("all_tpks")
 
+		// TODO: hand pick necessary fields for bundle, item, link, and key
+		// Bundle and Item can be created befor the key/link logic
+		// then the key/link logic would encompass the for loop that would
+		// iterate over each link or key and add to the appropriate table
+
 		if len(ddl.GetArray()) != 0 {
 			// this is where the SQLite code goes for links
+
 			InfoLogger.Println("dl: ", ddl)
 		} else {
 			if len(tpkd.GetArray()) != 0 {
