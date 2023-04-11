@@ -56,15 +56,18 @@ func main() {
 		ErrorLogger.Fatalf("cannot parse json: %s", e)
 	}
 
+	// Grab 'cookie', if no cookie, th
+	sessCookie := val.Get("cookie").String()
+	if sessCookie == "" {
+		ErrorLogger.Fatalf("no cookie present in config.json")
+	}
+
 	// TODO: add SQLite3 init code that would do the following:
 	// - [ ] Check for existing 'humble.db' file
 	// - [ ] If not existing, then create it
 	// - [ ] If existing, then  check for necessary Tables
 	// - [ ] If not present, then create them
 	// - [ ] If present, then complete init
-
-	// Grab 'cookie', if no cookie, throw a tantrum
-	var sessCookie string = val.Get("cookie").String()
 
 	// URL to pass to Colly for initial scraping
 	var uri string = "https://www.humblebundle.com/home/library"
