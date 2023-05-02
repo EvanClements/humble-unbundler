@@ -29,6 +29,70 @@ var (
 	ErrorLogger   *log.Logger
 )
 
+// Table 'Bundle'
+// 'id','gamekey','name','name_pretty','created'
+
+// Table 'Item'
+// 'id','gamekey','name','name_pretty','platform','last_updated'
+
+// Table 'Links'
+// 'id','item_id','name','filesize','md5','sha1','url', 'downloaded'(timestamp),
+
+// Table 'Keys'
+// 'id','item_id','name','key_type','is_redeemed','key','steam_app_id'
+
+// Create bundle first, then iterate over each item in bundle.
+// While iterating, create link or key
+
+type Link struct {
+	item_id    int
+	name       string
+	filesize   int
+	md5        string
+	sha1       string
+	url        string
+	torrent    string
+	platform   string
+	downloaded string
+}
+
+type Key struct {
+	item_id      int
+	name         string
+	key_type     string
+	is_redeemed  bool
+	key          string
+	steam_app_id int
+}
+
+type Item struct {
+	gamekey      string
+	name         string
+	name_pretty  string
+	platform     string
+	last_updated string
+	is_link      bool
+	link_id      int
+	is_key       bool
+	key_id       int
+}
+
+type Bundle struct {
+	gamekey     string
+	name        string
+	name_pretty string
+	created     string
+}
+
+type user struct {
+	steam_id  string
+	gog_id    string
+	origin_id string
+	cookie    string
+}
+
+var currentUser user
+
 func init() {
 	file, err := os.OpenFile("logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -41,7 +105,7 @@ func init() {
 }
 
 func main() {
-	// Init thebparser as p for reusability
+	// Init th bparsers as p and pb for reusability
 	var p fastjson.Parser
 
 	// Read config.json
@@ -51,14 +115,14 @@ func main() {
 	}
 
 	// Parse file contents and grab cookie (if present)
-	val, e := fastjson.ParseBytes(dat)
+	val, e := p.ParseBytes(dat)
 	if e != nil {
 		ErrorLogger.Fatalf("cannot parse json: %s", e)
 	}
 
 	// Grab 'cookie', if no cookie, th
-	sessCookie := val.Get("cookie").String()
-	if sessCookie == "" {
+	currentUser.cookie = val.Get("cookie").String()
+	if currentUser.cookie == "" {
 		ErrorLogger.Fatalf("no cookie present in config.json")
 	}
 
@@ -87,7 +151,7 @@ func main() {
 		// Create a new cookie
 		cookie := &http.Cookie{
 			Name:  "_simpleauth_sess",
-			Value: s.Trim(sessCookie, "\""),
+			Value: s.Trim(currentUser.cookie, "\""),
 			// need to find out how to make this not hard coded
 		}
 		// Add the cookie to the request
@@ -107,8 +171,6 @@ func main() {
 		// There is a lot of info here: do we want more than just 'gamekeys'?
 		// Also, should we parse the info into a DB or JSON file?
 
-		InfoLogger.Println("User JSON: ", v.Get())
-
 		gk := v.GetArray("gamekeys")
 
 		for i := 0; i <= len(gk)-1; i++ {
@@ -118,20 +180,30 @@ func main() {
 			q.AddURL(endpoint)
 		}
 
-		// Next steps:
-		// Create a 'User' struct (what will it contain?)
-		// Thought: type User struct {
-		//	SteamID string,
-		//	OriginID string,
-		//	UplayID string,
-		//	GogID string,
-		//	Gamekeys array,
-		//}
+		// Grab the GOG.com relevant field from the user JSON
+		gog := v.Get("userOptions").Get("gog_account_id").String()
+
+		// if it isn't empty, add the result to the User struct
+		if gog != "" {
+			currentUser.gog_id = gog
+		}
+
+		// Grab the EA Origin relevant field from the user JSON
+		origin := v.Get("userOptions").Get("origin_username").String()
+
+		// if it isn't empty, add the result to the User struct
+		if origin != "" {
+			currentUser.origin_id = origin
+		}
+
+		// Print the User Struct in the log.txt file tor testing
+		InfoLogger.Println("User Struct: ", currentUser)
+
 		// Populate the User table/JSON file
 	})
 
 	apiCall.OnResponse(func(r *colly.Response) {
-		v, err := fastjson.ParseBytes(r.Body)
+		v, err := p.ParseBytes(r.Body)
 		if err != nil {
 			ErrorLogger.Fatalf("cannot parse json: %s", err)
 		}
@@ -140,23 +212,67 @@ func main() {
 		ddl := v.Get().Get("subproducts")
 		tpkd := v.Get().Get("tpkd_dict").Get("all_tpks")
 
+		// Bundles have Items,
+		// Items have Links and/or Keys
+
+		// b = bundle{
+		// gamekey:     v.GetString("gamekey"),
+		// name:        v.GetString("machine_name"),
+		// name_pretty: v.GetString(""),
+		// created:     v.GetString(""),
+		// }
+
+		//currentBundle.gamekey = gk[i]
+		// InfoLogger.Println("Response: ", v.Get())
+
 		// TODO: hand pick necessary fields for bundle, item, link, and key
 		// Bundle and Item can be created befor the key/link logic
 		// then the key/link logic would encompass the for loop that would
 		// iterate over each link or key and add to the appropriate table
 
+		// Bundle
+		b := Bundle{
+			gamekey:     v.Get("gamekey").String(),
+			name:        v.Get("product").Get("machine_name").String(),
+			name_pretty: v.Get("product").Get("human_name").String(),
+			created:     v.Get("created").String(),
+		}
+
+		InfoLogger.Println("Bundle: ", b)
+		// this will be where the SQL code will go
+
+		// Create FOR block in each IF statement to create items
+		// When each item is created, create keys or links
+
 		if len(ddl.GetArray()) != 0 {
 			// this is where the SQLite code goes for links
+			// links := []Link{}
+			for i := 0; i <= len(ddl.GetArray()); i++ {
+				// curr := ddl.GetArray()[i]
+				// links = append(links, Link{
+				// name: curr.GetArray("downloads")[1].GetString("machine_name").String(), // Same as name in item
+				// gamekey: v.Get("gamekey").String(),
+				// filesize int,
+				// md5 string,
+				// sha1 string,
+				// url string,
+				// torrent string,
+				// platform string,
+				// filetype string,
+				// })
 
-			InfoLogger.Println("dl: ", ddl)
-		} else {
-			if len(tpkd.GetArray()) != 0 {
-				// this is where the SQLite code goes for keys
-				InfoLogger.Println("keys: ", tpkd)
-			} else {
-				InfoLogger.Println("No keys found: output: ", v.Get())
 			}
+			// InfoLogger.Println("dl: ", links)
+
+		} else if len(tpkd.GetArray()) != 0 {
+			// this is where the SQLite code goes for keys
+			// InfoLogger.Println("keys: ", tpkd)
+
+		} else {
+			InfoLogger.Println("No keys or direct download links found - output: ", v.Get())
 		}
+
+		InfoLogger.Println("Items: ", items)
 
 		// create a struct or map to to pass to an SQL query
 	})
